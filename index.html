@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>电商经营数仓与数据分析 Agent · 张楉晗</title>
+<meta name="description" content="基于 MCP 与 Skill 的数据分析 Agent：中文自助取数、受控计算、图表与报表导出，分析引擎与业务配置分离，并用冻结评测集验收。">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2314181c'/%3E%3C/svg%3E">
+<style>
+/* 技术报告版式。颜色只表示状态：青绿=通过，红=拦下或失败，琥珀=待人工。其余全部黑白灰。 */
+:root {
+  --ink: #14181c; --ink2: #4e565e; --ink3: #6c747c;
+  --rule: #e3e6e9; --rule2: #c6ccd2; --panel: #f5f6f7; --bg: #fff;
+  --pass: #0a7468; --pass-bg: #e2f2ef; --fail: #bf2f1c; --fail-bg: #fbe8e4; --hold: #9a5c00; --hold-bg: #fbf0dc;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "PingFang SC", "Microsoft YaHei", monospace;
+  --gut: max(16px, env(safe-area-inset-left, 0px));
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 64px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.8 var(--sans); -webkit-font-smoothing: antialiased; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; text-underline-offset: 3px; text-decoration-color: var(--rule2); }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+h1, h2, h3, p, ol, ul, dl, dd, pre, figure { margin: 0; padding: 0; }
+ol, ul { list-style: none; }
+h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 600; line-height: 1.22; letter-spacing: -.005em; }
+h2 { font-size: clamp(23px, 2.7vw, 29px); font-weight: 600; line-height: 1.35; }
+h3 { font-size: 17px; font-weight: 600; line-height: 1.5; }
+code, pre, .mono { font-family: var(--mono); }
+.wrap { max-width: 1160px; margin: 0 auto; padding-left: var(--gut); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+.bar { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--rule); }
+.bar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 52px; }
+.bar .who { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.bar .who span { font-weight: 400; color: var(--ink3); margin-left: 10px; }
+.bar nav { display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; }
+.bar nav::-webkit-scrollbar { display: none; }
+.bar nav a { font-size: 13.5px; color: var(--ink2); text-decoration: none; white-space: nowrap; padding: 4px 0; }
+.bar nav a:hover { color: var(--ink); }
+@media (max-width: 640px) { .bar .who span { display: none; } .bar .wrap { gap: 14px; } }
+
+.head { padding: 64px 0 56px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 64px; align-items: start; }
+.head .lead { margin-top: 22px; font-size: 17px; color: var(--ink2); max-width: 34em; }
+.head .role { margin-top: 20px; font-size: 14px; color: var(--ink3); }
+.sheet { border-top: 2px solid var(--ink); }
+.sheet div { display: grid; grid-template-columns: 5.6em minmax(0, 1fr); gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--rule); font-size: 14.5px; line-height: 1.65; }
+.sheet dt { color: var(--ink3); }
+.sheet dd b { font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .head { grid-template-columns: 1fr; gap: 36px; padding: 40px 0 36px; } }
+
+section { border-top: 1px solid var(--rule2); padding: 56px 0 8px; }
+.sh { max-width: 720px; }
+.sh p { margin-top: 12px; color: var(--ink2); }
+.prose { max-width: 720px; }
+.prose p + p { margin-top: 14px; }
+.prose p { color: var(--ink2); }
+.block { margin-top: 28px; }
+.note { font-size: 13.5px; line-height: 1.7; color: var(--ink3); max-width: 720px; }
+.cap { margin-top: 10px; font-size: 13.5px; line-height: 1.7; color: var(--ink3); }
+
+.s-pass { color: var(--pass); } .s-fail { color: var(--fail); } .s-hold { color: var(--hold); }
+.tag { display: inline-block; font-size: 12.5px; line-height: 1.5; padding: 0 6px; font-weight: 500; white-space: nowrap; }
+.tag.pass { color: var(--pass); background: var(--pass-bg); } .tag.fail { color: var(--fail); background: var(--fail-bg); } .tag.hold { color: var(--hold); background: var(--hold-bg); }
+
+.tw { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; line-height: 1.65; }
+thead th { text-align: left; font-weight: 500; font-size: 13px; color: var(--ink3); padding: 8px 14px 8px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+tbody td, tbody th { text-align: left; font-weight: 400; vertical-align: top; padding: 11px 14px 11px 0; border-bottom: 1px solid var(--rule); }
+.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td code { font-size: 13px; }
+pre.code { background: var(--panel); padding: 12px 14px; font-size: 12.5px; line-height: 1.65; overflow-x: auto; white-space: pre; }
+
+.tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--rule2); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { appearance: none; border: 0; background: none; font: inherit; font-size: 14.5px; color: var(--ink3); padding: 9px 0; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--ink); }
+.btn { appearance: none; background: #fff; border: 1px solid var(--rule2); font: inherit; font-size: 13px; line-height: 1.5; padding: 4px 10px; cursor: pointer; color: var(--ink); }
+.btn:hover:not(:disabled) { border-color: var(--ink); }
+.btn:disabled { color: var(--rule2); cursor: default; }
+
+footer { margin-top: 72px; border-top: 1px solid var(--rule2); padding: 24px 0 48px; font-size: 13px; line-height: 1.8; color: var(--ink3); }
+footer .links { display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--ink); margin-bottom: 12px; font-size: 14px; }
+
+/* 运行记录 */
+.run { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 40px; align-items: start; }
+.run .lab { font-size: 13px; color: var(--ink3); margin-bottom: 6px; }
+.run .ask { font-size: 18px; line-height: 1.55; font-weight: 500; }
+.run .ask + .ask { margin-top: 6px; }
+.run .ans { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 15px; line-height: 1.8; }
+.run .ans p + p, .run .ans ul + p, .run .ans p + ul { margin-top: 8px; }
+.run .ans ul li { padding-left: 1em; text-indent: -1em; }
+.run .ans ul li::before { content: "·"; display: inline-block; width: 1em; text-indent: 0; color: var(--ink3); }
+.run .ans .turn { font-size: 12.5px; color: var(--ink3); margin-top: 16px; }
+.run .ans mark { background: none; color: inherit; border-bottom: 2px solid var(--pass); cursor: help; font-weight: 600; font-variant-numeric: tabular-nums; }
+.run .ans mark.on { background: var(--pass-bg); }
+.run .verdict { margin-top: 18px; font-size: 13.5px; color: var(--ink3); }
+.steps { border-top: 2px solid var(--ink); }
+.step { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 8px; padding: 12px 0; border-bottom: 1px solid var(--rule); font-size: 14px; line-height: 1.65; }
+.step .i { color: var(--ink3); font-variant-numeric: tabular-nums; font-size: 13px; }
+.step .t { font-family: var(--mono); font-size: 13.5px; font-weight: 600; }
+.step .s { font-size: 12.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.step .d { grid-column: 2 / -1; color: var(--ink2); font-size: 13.5px; }
+.step.rej { background: linear-gradient(90deg, var(--fail) 0, var(--fail) 2px, transparent 2px); padding-left: 10px; }
+.step.src { background: var(--pass-bg); }
+.step pre { grid-column: 2 / -1; font-size: 12px; line-height: 1.6; background: var(--panel); padding: 8px 10px; overflow-x: auto; margin-top: 4px; }
+.step .msg { grid-column: 2 / -1; font-size: 13.5px; margin-top: 4px; }
+.step .msg.fail { color: var(--fail); }
+.step .msg.hold { color: var(--hold); }
+.step .rt { grid-column: 2 / -1; font-family: var(--mono); font-size: 12px; margin-top: 6px; border-collapse: collapse; width: auto; }
+.step .rt th, .step .rt td { padding: 1px 16px 1px 0; border: 0; border-bottom: 1px solid var(--rule); font-weight: 400; white-space: nowrap; }
+.step .rt th { color: var(--ink3); }
+.step .rid { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.noop { padding: 14px 0; border-bottom: 1px solid var(--rule); font-size: 14px; color: var(--ink2); }
+.run > div:first-child { position: sticky; top: 68px; }
+@media (max-width: 860px) { .run { grid-template-columns: 1fr; gap: 28px; } .run > div:first-child { position: static; } }
+
+.ui { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.ui img { border: 1px solid var(--rule2); }
+@media (max-width: 860px) { .ui { grid-template-columns: 1fr; gap: 20px; } }
+
+/* 结构图 */
+.arch { border: 1px solid var(--ink); }
+.band { padding: 14px 16px 16px; }
+.band + .band { border-top: 1px solid var(--ink); }
+.band > .lab { font-size: 13px; color: var(--ink3); margin-bottom: 10px; }
+.flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px; }
+.flow > div { position: relative; font-size: 13.5px; line-height: 1.6; color: var(--ink2); }
+.flow > div b { display: block; color: var(--ink); font-size: 14.5px; font-weight: 600; }
+.flow > div code { font-size: 12px; color: var(--ink); }
+.flow > div:not(:last-child)::after { content: "→"; position: absolute; right: -18px; top: 0; color: var(--ink3); }
+.orch { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--rule2); font-size: 13.5px; color: var(--ink2); }
+.eng { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: 28px; }
+.eng > div { font-size: 13.5px; line-height: 1.65; color: var(--ink2); }
+.eng b { display: block; color: var(--ink); font-size: 14.5px; font-weight: 600; margin-bottom: 2px; }
+.eng code { font-size: 12px; color: var(--ink); }
+@media (max-width: 860px) {
+  .flow { grid-template-columns: 1fr; gap: 12px; }
+  .flow > div:not(:last-child)::after { content: "↓"; right: auto; left: 0; top: auto; bottom: -15px; font-size: 12px; }
+  .flow > div { padding-bottom: 6px; }
+  .eng { grid-template-columns: 1fr; gap: 14px; }
+}
+
+/* 评测矩阵 */
+.ev { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+.mx { font-size: 13.5px; }
+.mx .r { display: grid; grid-template-columns: 38px minmax(0, 1fr) repeat(5, 30px); align-items: center; border-bottom: 1px solid var(--rule); min-height: 27px; cursor: pointer; width: 100%; appearance: none; background: none; border-width: 0 0 1px; font: inherit; text-align: left; padding: 0; color: inherit; }
+.mx .r:hover { background: var(--panel); }
+.mx .r .id { font-family: var(--mono); font-size: 11.5px; color: var(--ink3); }
+.mx .r .q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+.mx .c { width: 16px; height: 16px; justify-self: center; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; color: #fff; }
+.mx .c.pass { background: var(--pass); }
+.mx .c.fail { background: #fff; color: var(--fail); box-shadow: inset 0 0 0 1.5px var(--fail); font-weight: 600; }
+.mx .hd { display: grid; grid-template-columns: 38px minmax(0, 1fr) repeat(5, 30px); align-items: end; padding-bottom: 6px; border-bottom: 1px solid var(--ink); font-size: 12px; color: var(--ink3); }
+.mx .hd span.k { text-align: center; line-height: 1.3; }
+.mx .hd span.k b { display: block; color: var(--ink); font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mx .ct { font-size: 12.5px; color: var(--ink3); padding: 12px 0 4px; }
+.mx .why { font-size: 13px; line-height: 1.65; color: var(--ink2); padding: 8px 0 10px 38px; border-bottom: 1px solid var(--rule); }
+.mx-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 13px; color: var(--ink3); flex-wrap: wrap; }
+.mx-tools label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ink2); }
+.rounds li { padding: 12px 0; border-bottom: 1px solid var(--rule); font-size: 14px; line-height: 1.7; color: var(--ink2); }
+.rounds li:first-child { border-top: 2px solid var(--ink); }
+.rounds li b { display: block; color: var(--ink); font-weight: 600; font-size: 14.5px; }
+.rounds .fig { float: right; font-variant-numeric: tabular-nums; color: var(--ink); font-size: 13.5px; margin-left: 12px; }
+@media (max-width: 960px) { .ev { grid-template-columns: 1fr; gap: 32px; } }
+
+.yml { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; background: var(--rule2); border: 1px solid var(--rule2); }
+.yml > div { background: #fff; min-width: 0; }
+.yml .h { font-size: 13px; color: var(--ink2); padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.yml .h code { color: var(--ink); font-size: 12.5px; }
+.yml pre { font-size: 12px; line-height: 1.75; padding: 10px 12px; overflow-x: auto; }
+@media (max-width: 760px) { .yml { grid-template-columns: 1fr; } }
+
+/* 血缘 */
+.lin { border: 1px solid var(--rule2); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.lin svg { display: block; }
+.lin text { font-family: var(--mono); font-size: 10px; fill: var(--ink); pointer-events: none; }
+.lin .col { font-family: var(--sans); font-size: 12px; fill: var(--ink3); }
+.lin rect { fill: #fff; stroke: var(--rule2); cursor: pointer; }
+.lin path { fill: none; stroke: #d5dade; stroke-width: 1; }
+.lin.act path { stroke: #eef0f2; }
+.lin.act rect { stroke: #e7eaed; }
+.lin.act text { fill: #b6bcc2; }
+.lin path.up { stroke: var(--ink); stroke-width: 1.2; }
+.lin path.down { stroke: var(--pass); stroke-width: 1.2; }
+.lin g.up rect { stroke: var(--ink); fill: var(--panel); } .lin g.up text { fill: var(--ink); }
+.lin g.down rect { stroke: var(--pass); fill: var(--pass-bg); } .lin g.down text { fill: var(--pass); }
+.lin g.me rect { fill: var(--ink); stroke: var(--ink); } .lin g.me text { fill: #fff; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 48px; }
+.stats div { display: flex; justify-content: space-between; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 14.5px; line-height: 1.65; }
+.stats div span { color: var(--ink2); } .stats div b { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.met { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 6px 16px; font-size: 14px; line-height: 1.7; }
+.met dt { color: var(--ink3); } .met dd { color: var(--ink2); }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; gap: 32px; } .stats { grid-template-columns: 1fr; } }
+.lst li { padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 14.5px; line-height: 1.7; color: var(--ink2); }
+.lst li:first-child { border-top: 2px solid var(--ink); }
+</style>
+</head>
+<body>
+<div class="bar"><div class="wrap">
+  <div class="who">张楉晗<span>电商经营数仓与数据分析 Agent</span></div>
+  <nav aria-label="本页章节"><a href="#run">运行实例</a><a href="#guard">幻觉防控</a><a href="#arch">系统结构</a><a href="#eval">评测</a><a href="#move">跨域迁移</a><a href="#dw">数仓</a><a href="#role">分工与边界</a></nav>
+</div></div>
+
+<main class="wrap">
+<header class="head">
+  <div>
+    <h1>电商经营数仓与数据分析 Agent</h1>
+    <p class="lead">业务同学用中文提问，Agent 按统一口径取数、计算、出图并导出报表。我搭了从增量同步到指标层的数仓，在上面用 MCP 和 Skill 做成 Agent，分析引擎和业务配置分开，再用事先锁定的题目验收。</p>
+    <p class="role">独立项目负责人 · Python、MCP、Skill、RAG（BM25 检索）、MetricFlow、dbt、PostgreSQL、DuckDB、Dagster、Streamlit、Plotly</p>
+  </div>
+  <dl class="sheet">
+    <div><dt>Agent</dt><dd><b>8 个</b> MCP Tool，口径陷阱手册封装为 Skill</dd></div>
+    <div><dt>开发集</dt><dd>综合通过率 <b>78% → 92%</b>，按错误归因迭代 <b>5 轮</b></dd></div>
+    <div><dt>冻结验收</dt><dd>通过率 <b>92%</b>（11/12），题目在运行前锁定</dd></div>
+    <div><dt>跨域迁移</dt><dd>引擎代码改动 <b>0 行</b>，<b>12 道</b>迁移测试题全部通过</dd></div>
+    <div><dt>指标口径</dt><dd>统一 GMV、履约、复购、转化等 <b>25 项</b></dd></div>
+    <div><dt>数据链路</dt><dd>回补 <b>746</b> 个历史业务日，<b>52 条</b>质量检查在 <b>779 次</b>日更中阻断级失败为 <b>0</b></dd></div>
+  </dl>
+</header>
+
+<section id="run">
+  <div class="sh">
+    <h2>一个问题进来之后发生了什么</h2>
+    <p>下面四条取自评测运行记录，工具调用和回答都是当时的原始内容，模型是 Claude Haiku 4.5。先看第一条，模型把查询结果手抄进计算语句，服务端拒绝执行，它改用结果编号重算。回答里带下划线的数字，指向算出它的那一步。</p>
+  </div>
+  <div class="block">
+    <div class="tabs" role="tablist" aria-label="运行实例" id="runTabs"></div>
+    <div id="runPanel" role="tabpanel"></div>
+  </div>
+
+  <div class="block ui" style="margin-top:56px">
+    <img src="agent_ui.webp" width="1440" height="1914" loading="lazy" alt="Agent 前端界面：用户问 2017 年每月 GMV 和有效订单数，回答依次给出口径说明、12 个月的数据表、关键发现、两张折线图和工具调用记录">
+    <div class="prose">
+      <h3>前端</h3>
+      <p style="margin-top:8px">我用 Streamlit 做了一个本地前端，和评测用同一套配置。这张是真实运行的截图，用户问 2017 年每月 GMV 和有效订单数，并要求画成折线图。</p>
+      <p>界面支持多轮对话，运行时能看到每一步调了什么工具、护栏给了什么提示。图表只能用本次会话查出来的结果画，手填的数字进不了图。整段对话可以一键导出成离线打开的可视化报表。</p>
+      <p>侧栏可以切换业务域、查看和清空记住的口径偏好，也可以按月份生成经营复盘，复盘模板写在领域包里。</p>
+    </div>
+  </div>
+</section>
+
+<section id="guard">
+  <div class="sh">
+    <h2>模型会犯的错，尽量交给程序拦</h2>
+    <p>这张表里每一行都来自真实运行。能用代码保证的事情，我放在 MCP 服务端做校验，提示词只留下判断类的规则，比如什么时候该反问。</p>
+  </div>
+  <div class="block tw">
+    <table style="min-width:760px">
+      <thead><tr><th style="width:17%">错误类型</th><th style="width:37%">运行中看到的现象</th><th style="width:46%">现在怎么处理</th></tr></thead>
+      <tbody>
+        <tr><td>维度误用</td><td>模型按 <code>geo__state</code> 分组，这个维度并不存在</td><td>分组和 where 里的维度名都先和指标目录比对，不存在就直接返回可用维度列表，不调用 MetricFlow</td></tr>
+        <tr><td>截断后汇总</td><td>查询返回 130 行、工具只回显前 50 行，模型用看到的部分求和，GMV 环比答成 +143.53%</td><td>截断时在返回里写明不要手工汇总；<code>compute</code> 拒绝读取截断过的结果</td></tr>
+        <tr><td>把数字抄进 SQL</td><td>把 6 个月的 GMV 手抄进语句里相加</td><td>解析语法树检查字面量，VALUES 抄表、5 个以上小数、手填结果里已有的数，都拒绝并提示改用结果编号</td></tr>
+        <tr><td>模型心算</td><td>复核历史运行，发现 5 处心算偏差，都在容差范围内，但模型确实在自己算</td><td>差值、增长率、占比、合计由 <code>compute</code> 按结果编号执行，输入和公式登记后可以重放；需要人工复核的推算从 5 条降到 2 条</td></tr>
+        <tr><td>比率再平均</td><td>问 2017 年复购率，模型把 12 个月的比率求平均，得 1.31%，同期群口径是 1.35%</td><td>比率类指标按时间分组时，返回里提示要看整段时间就去掉分组，由指标层用分子分母计算</td></tr>
+        <tr><td>偏好没有传递</td><td>用户说 GMV 含运费，模型读到了，客单价却仍用不含运费的 GMV，得 132.06，应为 153.30</td><td>查询依赖 GMV 的派生指标时，服务端发现已存偏好就提示换算法，上面第二条运行实例就触发了这条提示</td></tr>
+        <tr><td>口径不明或超范围</td><td>“哪个品类卖得最好”按 GMV 和按单量答案不同，模型自己挑一个作答</td><td>常驻规则要求先问清指标、时间和对比基准；数据里没有的内容直接说明无法回答。反问题的问点要问全才算对，开发集从 0/4 提到第 5 轮的 4/4</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="block prose">
+    <h3>GMV 环比分解的那次错误</h3>
+    <p style="margin-top:8px">业务案例里有一道题，问 2017 年 11 月 GMV 比 10 月涨了多少，增长在哪些州和品类。Agent 第一次答 +143.53%，10 月 512,919.32，11 月 1,249,119.51。标准 SQL 算出来是 660,179.62 到 1,003,862.14，涨幅 +52.1%。</p>
+    <p>单值题的评测碰不到这个问题。我逐步查运行记录，定位到它把截断的预览手抄进 VALUES 再求和。上表第二、三行的约束就是从这里来的。之后三次重跑，总量和涨幅都和标准结果一致。</p>
+  </div>
+</section>
+
+<section id="arch">
+  <div class="sh">
+    <h2>系统结构</h2>
+    <p>引擎里不写任何业务内容，数据范围、默认口径和示例都放在领域包，模型看到的规则由引擎的句子骨架和领域包的业务内容拼成。</p>
+  </div>
+  <div class="block arch">
+    <div class="band">
+      <div class="lab">数据链路</div>
+      <div class="flow">
+        <div><b>业务库回放</b><code>PostgreSQL</code><br>按原始时间戳逐日写入新增和状态变更</div>
+        <div><b>CDC 增量同步</b><code>逻辑复制 · pgoutput</code><br>945,184 条操作，先落盘再确认位点</div>
+        <div><b>分层建模</b><code>dbt · DuckDB</code><br>ODS、DWD、DIM（拉链表）、事实表、DWS、ADS</div>
+        <div><b>指标层</b><code>MetricFlow</code><br>25 项对外指标，去重和比率由语义层保证</div>
+        <div><b>只读副本</b><code>DuckDB</code><br>Agent 只连副本，运行记录类的表不暴露</div>
+      </div>
+      <div class="orch"><code style="font-size:12px;color:var(--ink)">Dagster</code> 按日分区调度，T+1 定时推进，文件到达传感器，CDC 阻断式检查，历史回补</div>
+    </div>
+    <div class="band">
+      <div class="lab">Agent</div>
+      <div class="eng">
+        <div><b>通用引擎</b><code>MCP Server</code><br>8 个工具、常驻规则的句子骨架、服务端校验、结果登记（R1、R2…）、运行留痕</div>
+        <div><b>领域包</b><code>domains/*.yml</code><br>数据范围、默认口径、可选偏好、示例、表目录、复盘模板</div>
+        <div><b>运行方式</b><code>Claude Code · Skill · Streamlit</code><br>口径陷阱手册按需加载，前端和评测用同一套配置</div>
+      </div>
+    </div>
+  </div>
+  <div class="block tw">
+    <table style="min-width:640px">
+      <thead><tr><th>工具</th><th>做什么</th><th>服务端约束</th></tr></thead>
+      <tbody>
+        <tr><td><code>search_metrics</code></td><td>检索指标口径说明（BM25）</td><td>检索范围来自领域包的指标说明</td></tr>
+        <tr><td><code>query_metrics</code></td><td>通过 MetricFlow 查指标</td><td>维度名校验、比率分组提示、偏好传到派生指标</td></tr>
+        <tr><td><code>find_tables</code></td><td>检索可查的表</td><td>只暴露领域包允许的表</td></tr>
+        <tr><td><code>similar_examples</code></td><td>取相似问题的标准做法</td><td>示例库只用开发集，看不到留出集和验收集</td></tr>
+        <tr><td><code>run_sql</code></td><td>指标层答不了时写只读 SQL</td><td>单条 SELECT、表白名单、禁止读文件、抄数拦截、连续失败 3 次停止</td></tr>
+        <tr><td><code>compute</code></td><td>用已查出的结果计算</td><td>表只能是结果编号，拒绝手填数字和截断结果</td></tr>
+        <tr><td><code>make_chart</code></td><td>用已查出的结果出图</td><td>只接受结果编号</td></tr>
+        <tr><td><code>save_preference</code></td><td>记住用户确认过的口径</td><td>键和值只能取领域包声明的选项</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="eval">
+  <div class="sh">
+    <h2>怎么验收</h2>
+    <p>开发集用来迭代，留出集和冻结验收集在运行前锁定 SHA256，跑完不再按它们改规则。判分把查询结果、回答、行为分开：计数要完全相等，金额和比例允许 0.5% 相对误差，只出现在回答里的数字要能按查询结果复算才算对。</p>
+  </div>
+  <div class="block tw">
+    <table style="min-width:680px">
+      <thead><tr><th>题集</th><th class="n">题数</th><th>主配置（指标层优先）</th><th>对照（仅生成 SQL）</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr><td>开发集</td><td class="n">36</td><td class="n">28/36 → <b>33/36</b>（78% → 92%）</td><td>—</td><td>按错误归因迭代，结果偏乐观</td></tr>
+        <tr><td>留出集</td><td class="n">24</td><td class="n"><b>22/24</b>（92%）</td><td class="n">20/24（83%）</td><td>规则定版后只跑不改</td></tr>
+        <tr><td>第一份冻结验收集</td><td class="n">12</td><td class="n">9/12</td><td class="n">11/12</td><td>第 4 轮后验收，暴露的问题进入第 5 轮</td></tr>
+        <tr><td>第二份冻结验收集</td><td class="n">12</td><td class="n"><b>11/12</b>（92%），答案题 10/10</td><td class="n">12/12</td><td>第 5 轮后新出题验收</td></tr>
+        <tr><td>同一份，加受控计算后重跑</td><td class="n">12</td><td class="n"><b>11/12</b></td><td class="n">9/12</td><td>确认新工具没有带来回退</td></tr>
+        <tr><td>第二业务域迁移题</td><td class="n">12</td><td class="n"><b>12/12</b></td><td>—</td><td>引擎不改，只换领域包</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="block prose">
+    <p>这张表里我最看重对照组。两份验收集上，仅生成 SQL 的方案都不比主配置差，所以我不主张指标层让 Agent 更准。第 5 轮改的是两组共用的规则，两组一起变好，这一轮的提升来自规则本身。指标层的价值在口径一致，按人去重、跨时间这类题由代码保证，不依赖模型发挥。</p>
+    <p>对照组同一份题跑两次，一次 12/12，一次 9/12，三道错题都没有用到计算工具。12 道题的样本波动就是这么大，单次分数的差距我不拿来下结论。留出集上换更大的模型，Sonnet 5.5 是 23/24，Haiku 5.5 是 22/24，最多多对 1 题。第二份验收集唯一的错题是一道该拒答的题，问“复购的顾客里有多少是会员”，Agent 指出数据没有会员字段，同时又反问了，判为行为不符。</p>
+  </div>
+  <div class="block ev" style="margin-top:44px">
+    <div>
+      <h3 style="margin-bottom:10px">开发集逐题结果</h3>
+      <div class="mx-tools"><span>按现行评分器重判，点一行看判分理由</span><label><input type="checkbox" id="mxOnly"> 只看有变化的题</label></div>
+      <div class="mx" id="mx"></div>
+      <p class="cap">r2、r3、r5、r6 没有按现行评分器重判，不放进矩阵。B04、C06 在 r8 错、r9 又对，E01 在 r8 对、r9 又错，属于同一配置的运行波动。</p>
+    </div>
+    <div>
+      <h3 style="margin-bottom:10px">每一轮改了什么</h3>
+      <ol class="rounds">
+        <li><span class="fig">r1 · 28/36</span><b>第 1 轮 基线</b>两组同跑，先做错误归因。最常见的是比率再平均，反问是共同短板。</li>
+        <li><b>第 2 轮 服务端护栏</b>偏好传到派生指标，比率按时间分组时提示。</li>
+        <li><b>第 3 轮 反问规则</b>没说指标或对比基准时先反问，列出候选。</li>
+        <li><span class="fig">r4 · 32/36</span><b>第 4 轮 where 维度校验</b>where 里写错维度名直接返回可用列表。</li>
+        <li><span class="fig">r7 · 33/36</span><b>对标同类项目后的改进</b>回答忠实度检查、可操作报错、实体计数规则。</li>
+        <li><span class="fig">r8 · 33/36</span><b>第 5 轮 截断与反问</b>截断提示和抄数拦截、反问问全、相对时间先说明数据范围、新增看得满 90 天的复购指标。</li>
+        <li><span class="fig">r9 · 33/36</span><b>加受控计算</b>派生数改由程序计算，通过率不变，需要复核的推算减少。</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section id="move">
+  <div class="sh">
+    <h2>换一个业务要改什么</h2>
+    <p>我把业务口径、数据范围、知识和示例全部抽进领域包，然后接入 dbt 官方的示例项目 Jaffle Shop（三明治连锁店）。只写了 186 行配置和知识文件，引擎代码改动 0 行，12 道迁移测试题全部通过。题和领域包是同一作者写的，样本也小，这个结果只说明引擎里确实没有残留的电商逻辑。</p>
+  </div>
+  <div class="block yml">
+    <div><div class="h"><code>domains/olist.yml</code> 电商</div><pre><span style="color:var(--ink3)"># 业务域</span>
+name:
+  olist
+<span style="color:var(--ink3)"># 数据范围</span>
+data:
+  数据：巴西电商 Olist 2016-09 至 2018-10
+  的订单（巴西本地时间），有效订单只到
+  2018-09-03（之后几乎都是取消的单）；另一个网站 RetailRocket
+  2015-05 至 2015-09 的行为日志（UTC），两者不能关联。
+<span style="color:var(--ink3)"># 数据里没有、要拒答的内容</span>
+not_in_data:
+  利润、成本、广告花费、商品名称、库存、退款、2016 年 1–8 月
+<span style="color:var(--ink3)"># 需要先反问的说法</span>
+ambiguous_examples:
+  「卖得最好」「最有价值」「增长得怎么样」「表现如何」</pre></div>
+    <div><div class="h"><code>domains/jaffle.yml</code> 三明治店</div><pre><span style="color:var(--ink3)"># 业务域</span>
+name:
+  jaffle
+<span style="color:var(--ink3)"># 数据范围</span>
+data:
+  数据：虚构的三明治店 Jaffle Shop 2016-09-01 至
+  2017-08-31 的订单（一年，金额是美元）；登记了 5 家门店，这段时间只有
+  Philadelphia、Brooklyn 两家有订单。
+<span style="color:var(--ink3)"># 数据里没有、要拒答的内容</span>
+not_in_data:
+  员工、工资、房租、库存、退款、营销花费、顾客性别和年龄、2016 年 9 月之前和
+  2017 年 9 月之后
+<span style="color:var(--ink3)"># 需要先反问的说法</span>
+ambiguous_examples:
+  「卖得最好」「哪家店更好」「生意怎么样」</pre></div>
+  </div>
+</section>
+
+<section id="dw">
+  <div class="sh">
+    <h2>下面的数仓</h2>
+    <p>Agent 能答对，前提是下面的口径是对的。原始数据是 Olist 巴西电商约 10 万笔订单和 RetailRocket 275 万条行为日志。Olist 只有最终状态的快照，我用回放器按每笔订单的真实时间戳一天天写进业务库，CDC 抓到的就是这些变化。</p>
+  </div>
+  <div class="block">
+    <div class="mx-tools"><span>dbt 血缘，62 个节点、71 条依赖，由 manifest 生成。点一个节点看它的上下游</span><button class="btn" id="linReset" type="button">清除选择</button></div>
+    <div class="lin" id="lin"></div>
+    <p class="cap">黑色是上游，青绿是下游。窄屏可以左右滑动。</p>
+  </div>
+  <div class="block two">
+    <div>
+      <h3 style="margin-bottom:10px">工程验收</h3>
+      <div class="stats" style="grid-template-columns:1fr">
+        <div><span>回放的业务变更</span><b>945,184 条</b></div>
+        <div><span>回补的历史业务日</span><b>746 个</b></div>
+        <div><span>质量检查 / 日更次数</span><b>52 条 / 779 次</b></div>
+        <div><span>阻断级失败</span><b>0</b></div>
+        <div><span>迟到评价回看窗口（45 天）覆盖</span><b>99.75%</b></div>
+        <div><span>回补每业务日耗时</span><b>35.3 秒 → 12.9 秒</b></div>
+        <div><span>服务护栏、调度、评分器单元测试（不含 CDC）</span><b>84 个</b></div>
+      </div>
+      <p class="cap">贴源层 7 张表回放到 2017 年底后，与原数据逐字段一致，两次从零重跑指纹相同。</p>
+    </div>
+    <div>
+      <h3 style="margin-bottom:10px">25 项指标</h3>
+      <dl class="met">
+        <dt>成交</dt><dd>GMV、含运费 GMV、支付金额、运费、客单价、人均消费</dd>
+        <dt>订单与卖家</dt><dd>有效订单、全部订单、取消率、动销卖家</dd>
+        <dt>买家与复购</dt><dd>买家、新客、90 天复购率、看得满 90 天的复购率</dd>
+        <dt>履约</dt><dd>平均配送天数、配送天数中位数、准时送达率</dd>
+        <dt>评价</dt><dd>评价数、好评率、差评率</dd>
+        <dt>流量与转化</dt><dd>访客、加购转化、购买转化、次日留存、7 日留存</dd>
+      </dl>
+      <p style="margin-top:16px;font-size:14.5px;line-height:1.75;color:var(--ink2)">审定口径时最典型的一个是复购率。这份数据每下一单就生成一个新的 customer_id，按它算复购率是 0%，按 customer_unique_id 去重才是 2.83%。另一个是观察窗口，2018 年 6 月起的首单看不满 90 天，原指标会把 2018 年复购率低估约 15%，所以我加了一个只算看得满的版本，默认口径不变。</p>
+    </div>
+  </div>
+</section>
+
+<section id="role">
+  <div class="two">
+    <div>
+      <h2>我做了什么</h2>
+      <div class="prose" style="margin-top:14px">
+        <p>项目目标、范围和验收标准是我定的。指标里 11 条有分歧的口径由我审定，比如好评率按评价算还是按订单算。不伪造删除事件、按圣保罗时区换算、按错误归因决定每轮改什么、增设仅生成 SQL 的对照组、把业务内容拆成领域包并做跨域验证，这些取舍也是我拍板的。</p>
+        <p>代码用 Claude Code 写。评测题由 AI 起草，我审核定稿。每一项设计决定都留了书面记录，包括背景、方案、验证结果和没有采纳的选项。</p>
+      </div>
+    </div>
+    <div>
+      <h2>还差什么</h2>
+      <ul class="lst" style="margin-top:14px">
+        <li>这是单机项目，数据是公开的历史数据，业务库的变化靠回放产生，没有接过真实线上流量。</li>
+        <li>各题集规模都小，同一配置重复运行有 1 到 2 题波动，通过率要连同样本量一起看。</li>
+        <li>回答正文里顺带提到的数字仍可能是模型自己算的，比如第一条实例里的增长额。评分器会事后复算，但生成时还拦不住。</li>
+        <li>反问和拒答是否问到点上需要读语义，这部分复核留有记录，复核方不是独立第三方。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="links"><a href="https://esther0115.github.io/presale-workflow/">飞书 + Dify 售前咨询 AI 自动化工作流</a><a href="https://esther0115.github.io/seoul-deck/">首尔自由行 AI 行程规划助手</a></div>
+  数据来自 Olist Brazilian E-Commerce 与 RetailRocket 公开数据集，协议 CC BY-NC-SA 4.0，仅用于非商业学习；两份数据来自不同平台和年份，分别作交易和流量主题，不做关联。第二业务域使用 dbt Labs 的 jaffle-sl-template。页面数字来自项目仓库中的运行记录、自动化测试和验收脚本。
+</footer>
+</main>
+
+<script id="d" type="application/json">{"traces":[{"label":"算错之前被拦下","q":["2017 年第四季度的 GMV 比第三季度增长了多少？"],"a":[{"secs":43.2,"text":"**2017年第四季度GMV比第三季度增长了 43.06%**\n\n**口径说明：**\n- GMV = 有效订单的商品价之和，不含运费（order_status not in ('canceled', 'unavailable')）\n- 按巴西本地下单日（purchase_date_local）归属\n- Q3：7月+8月+9月\n- Q4：10月+11月+12月\n\n**数据：**\n- 2017年Q3 GMV：1,681,949.00\n- 2017年Q4 GMV：2,406,225.55\n- 增长额：724,276.55"}],"steps":[{"tool":"search_metrics","secs":0.01,"turn":"1","desc":"检索“GMV”，命中 品类 GMV 占比（不进 MetricFlow）、人均消费（gmv_per_buyer）、GMV（gmv）"},{"tool":"query_metrics","secs":9.17,"turn":"1","desc":"指标 gmv，按 metric_time__month，2017-07-01 至 2017-12-31","rid":"R1","rows":6},{"tool":"compute","secs":0.06,"turn":"1","sql":"select\n  (select 660179.62 + 1003862.14 + 742183.79) as q4_gmv,\n  (select 492287.3 + 568245.79 + 621415.91) as q3_gmv,\n  ((select 660179.62 + 1003862.14 + 742183.79) - (select 492287.3 + 568245.79 + 621415.91)) / (select 492287.3 + 568245.79 + 621415.91) as growth_rate","err":"不要把数字抄进 SQL：在 SQL 里用 select … from R1 where … 直接取结果里的值。","rej":true},{"tool":"compute","secs":0.06,"turn":"1","sql":"select\n  sum(case when metric_time__month in ('2017-10-01 00:00:00', '2017-11-01 00:00:00', '2017-12-01 00:00:00') then gmv else 0 end) as q4_gmv,\n  sum(case when metric_time__month in ('2017-07-01 00:00:00', '2017-08-01 00:00:00', '2017-09-01 00:00:00') then gmv else 0 end) as q3_gmv\nfrom R1","rid":"R2","rows":1,"inputs":["R1"]},{"tool":"compute","secs":0.03,"turn":"1","sql":"select\n  (q4_gmv - q3_gmv) / q3_gmv as growth_rate\nfrom R2","rid":"R3","rows":1,"inputs":["R2"]}],"tables":{"R1":{"cols":["metric_time__month","gmv"],"rows":[["2017-07-01",492287.3],["2017-08-01",568245.79],["2017-09-01",621415.91],["2017-10-01",660179.62],["2017-11-01",1003862.14],["2017-12-01",742183.79]]},"R2":{"cols":["q4_gmv","q3_gmv"],"rows":[[2406225.5500000003,1681949.0000000002]]},"R3":{"cols":["growth_rate"],"rows":[[0.43061742656881985]]}},"marks":[["1,681,949.00","R2"],["2,406,225.55","R2"],["43.06%","R3"]],"verdict":"判分：查询结果、回答都通过。","ref":"开发集 C04","empty":""},{"label":"记住确认过的口径","q":["我们算 GMV 是含运费的，以后都按这个算。2018 年 6 月 GMV 是多少？","2018 年 6 月的客单价是多少？"],"a":[{"secs":21.1,"text":"**2018 年 6 月 GMV（含运费）：102.04 万**\n\n已记住你的口径偏好，以后 GMV 都按含运费计算。"},{"secs":31.6,"text":"**2018 年 6 月的客单价是 166.05 巴西雷亚尔**\n\n**口径说明**：按你已确认的偏好，客单价 = GMV（含运费）÷ 有效订单数\n- GMV（含运费）：1,020,381.9 BRL\n- 有效订单数：6,145\n- 计算：1,020,381.9 ÷ 6,145 = 166.05 BRL"}],"steps":[{"tool":"search_metrics","secs":0.0,"turn":"1","desc":"检索“GMV 含运费”，命中 GMV 含运费（gmv_incl_freight）、GMV（gmv）、品类 GMV 占比（不进 MetricFlow）"},{"tool":"save_preference","secs":0.0,"turn":"1","desc":"gmv_definition = 含运费"},{"tool":"query_metrics","secs":5.32,"turn":"1","desc":"指标 gmv_incl_freight，2018-06-01 至 2018-06-30","rid":"R1","rows":1},{"tool":"search_metrics","secs":0.0,"turn":"2","desc":"检索“客单价”，命中 客单价（avg_order_value）、人均消费（gmv_per_buyer）"},{"tool":"query_metrics","secs":5.06,"turn":"2","desc":"指标 avg_order_value，2018-06-01 至 2018-06-30","guards":["注意：用户已保存 GMV 口径偏好「含运费」，avg_order_value 用的是不含运费的 GMV，按偏好应改用 gmv_incl_freight ÷ orders（两个指标一起查，再相除）。"],"rid":"R2","rows":1},{"tool":"query_metrics","secs":4.92,"turn":"2","desc":"指标 gmv_incl_freight、orders，2018-06-01 至 2018-06-30","rid":"R3","rows":1},{"tool":"compute","secs":0.07,"turn":"2","sql":"select (select gmv_incl_freight from R3) / (select orders from R3) as avg_order_value","rid":"R4","rows":1,"inputs":["R3"]}],"tables":{"R1":{"cols":["gmv_incl_freight"],"rows":[[1020381.9]]},"R2":{"cols":["avg_order_value"],"rows":[[140.4825923515053]]},"R3":{"cols":["gmv_incl_freight","orders"],"rows":[[1020381.9,6145]]},"R4":{"cols":["avg_order_value"],"rows":[[166.05075671277461]]}},"marks":[],"verdict":"判分：两轮的查询结果、回答都通过。","ref":"冻结验收集 X10","empty":""},{"label":"问题说不清时先反问","q":["上个月的数据怎么样？"],"a":[{"secs":13.4,"text":"我需要澄清几个细节：\n\n**数据覆盖范围：** 数据只到 2018 年 9 月初，您说的\"上个月\"是指哪个时间？比如 2018 年 8 月？\n\n**要看哪个指标？** 这会影响答案。常见的几个：\n- **GMV** — 成交总额\n- **订单数/成交订单数** — 有多少笔交易\n- **买家数** — 有多少不同的客户\n- **活跃卖家数** — 参与销售的卖家数量\n\n**对比基准？** \n- 和前一个月比（环比）\n- 和去年同期比（同比）\n- 还是只看这个月的整体数据\n\n提供这些信息后，我可以给出具体的数据。"}],"steps":[],"tables":{},"marks":[],"verdict":"判分：反问，问到了时间、指标和对比基准。","ref":"开发集 E05","empty":"没有调用工具。问题没说时间、指标和对比基准，Agent 不查数，先说明数据范围再问清楚。"},{"label":"数据里没有就直说","q":["2017 年的毛利是多少？"],"a":[{"secs":11.0,"text":"数据里没有成本和利润信息，无法计算毛利。\n\n根据数据规则说明，该数据集涵盖了订单、商品、卖家、客户、流量、配送和评价等维度，但不包含成本、利润、或其他财务数据。\n\n如果您想了解 2017 年的其他指标（如 GMV、订单数、买家数等），我可以帮您查询。"}],"steps":[],"tables":{},"marks":[],"verdict":"判分：拒答，理由正确。","ref":"开发集 F01","empty":"没有调用工具。常驻规则里写明了数据不含利润和成本，Agent 直接说明，不编造。"}],"matrix":{"cols":["r1","r4","r7","r8","r9"],"totals":[28,32,33,33,33],"rows":[{"id":"A01","cat":"单表聚合","q":"2018 年 8 月一共成交了多少单？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"A02","cat":"单表聚合","q":"所有支付记录里，信用卡支付占多少比例？按支付笔数算。","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"A03","cat":"单表聚合","q":"用信用卡付款的，平均分几期？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"A05","cat":"单表聚合","q":"哪 5 个品类下面的商品最多？按商品个数算。","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"A06","cat":"单表聚合","q":"2018 年 1 到 5 分的评价各有多少条？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"B02","cat":"多表关联","q":"2017 年 GMV 最高的 3 个买家州是哪几个？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"B03","cat":"多表关联","q":"2017 年哪个买家州的准时送达率最低？只看已送达订单超过 100 单的州。","s":["fail","pass","pass","pass","pass"],"why":[["r1","第 1 轮：结果 fail（结果对不上标准行 ['AL', 0.7929292929292929, 198]）；回答 pass（回答说出了要求的值）"]]},{"id":"B04","cat":"多表关联","q":"2017 年圣保罗的卖家卖给里约买家的订单有多少？","s":["pass","pass","pass","fail","pass"],"why":[["r8","第 1 轮：结果 fail（没有查询结果）；回答 fail（回答里没有 [4128]）"]]},{"id":"B05","cat":"多表关联","q":"2017 年平均评分最低的品类是哪个？只看评价超过 100 条的品类。","s":["fail","fail","fail","fail","fail"],"why":[["r1","第 1 轮：结果 fail（结果对不上标准行 ['office_furniture', 3.659322033898305, 590]）；回答 pass（回答说出了要求的值）"],["r4","第 1 轮：结果 fail（结果对不上标准行 ['office_furniture', 3.659322033898305, 590]）；回答 pass（回答说出了要求的值）"],["r7","第 1 轮：结果 fail（结果对不上标准行 ['office_furniture', 3.659322033898305, 590]）；回答 pass（回答说出了要求的值）"],["r8","第 1 轮：结果 fail（结果对不上标准行 ['office_furniture', 3.659322033898305, 590]）；回答 pass（回答说出了要求的值）"],["r9","第 1 轮：结果 fail（结果对不上标准行 ['office_furniture', 3.659322033898305, 590]）；回答 pass（回答说出了要求的值）"]]},{"id":"B08","cat":"多表关联","q":"2017 年有多少单是从两个以上卖家那里一起买的？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"B09","cat":"多表关联","q":"2017 年亚马孙州（AM）的买家平均几天收到货？比圣保罗（SP）慢几天？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"C01","cat":"时间口径","q":"2018 年 5 月的 GMV 比 4 月涨了还是跌了，变化百分之多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"C02","cat":"时间口径","q":"2017 年哪个月成交的单最多？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"C04","cat":"时间口径","q":"2017 年第四季度的 GMV 比第三季度增长了多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"C05","cat":"时间口径","q":"2017 年 3 月第一次下单的买家，首单后 90 天内的复购率是多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"C06","cat":"时间口径","q":"2017 年一周里星期几下单最多？","s":["pass","pass","pass","fail","pass"],"why":[["r8","第 1 轮：结果 derived（['Monday'] 只在回答里、查询结果里没有，推算过程要人工核对）；回答 fail（回答里没有 ['Monday']）"]]},{"id":"D01","cat":"口径陷阱","q":"2017 年一共有多少个买家？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"D02","cat":"口径陷阱","q":"2017 年的复购率是多少？","s":["fail","pass","pass","pass","pass"],"why":[["r1","第 1 轮：结果 derived（[0.013456041274489298] 只在回答里、查询结果里没有，推算过程要人工核对）；回答 fail（回答里没有 [0.013456041274489298]）"]]},{"id":"D03","cat":"口径陷阱","q":"到现在为止，买过两次及以上的老客户有多少人？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"D04","cat":"口径陷阱","q":"2017 年 GMV 是多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"D09","cat":"口径陷阱","q":"2017 年的好评率是多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"D12","cat":"口径陷阱","q":"2017 年订单从下单到收货平均几天？中位数呢？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"D13","cat":"口径陷阱","q":"2017 年 11 月 24 日当天（巴西时间）一共有多少笔订单？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"D14","cat":"口径陷阱","q":"2017 年的取消率是多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"E01","cat":"应该反问","q":"哪个品类卖得最好？","s":["fail","fail","fail","pass","fail"],"why":[["r1","期望 clarify，行为不符"],["r4","自动判为反问，问点/理由待人工核对"],["r7","自动判为反问，问点/理由待人工核对"],["r9","自动判为反问，问点/理由待人工核对"]]},{"id":"E04","cat":"应该反问","q":"哪个州的客户最有价值？","s":["fail","pass","pass","pass","pass"],"why":[["r1","期望 clarify，行为不符"]]},{"id":"E05","cat":"应该反问","q":"上个月的数据怎么样？","s":["fail","fail","fail","pass","pass"],"why":[["r1","自动判为反问，问点/理由待人工核对"],["r4","自动判为反问，问点/理由待人工核对"],["r7","自动判为反问，问点/理由待人工核对"]]},{"id":"E06","cat":"应该反问","q":"2018 年增长得怎么样？","s":["fail","fail","pass","pass","pass"],"why":[["r1","期望 clarify，行为不符"],["r4","自动判为反问，问点/理由待人工核对"]]},{"id":"F01","cat":"应该拒答","q":"2017 年的毛利是多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"F03","cat":"应该拒答","q":"2017 年卖得最好的商品叫什么名字？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"F04","cat":"应该拒答","q":"现在各仓库还有多少库存？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"F05","cat":"应该拒答","q":"2018 年 1–8 月的 GMV 比 2016 年同期增长了多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"G01","cat":"多轮追问","q":"2017 年 GMV 最高的 3 个买家州是哪几个？ → 那 RJ 的客单价是多少？","s":["pass","pass","pass","pass","pass"],"why":[]},{"id":"G03","cat":"多轮追问","q":"我们算 GMV 是含运费的，以后都按这个算。2017 年 GMV 是多少？ → 2017 年 12 月的客单价是多少？","s":["fail","pass","pass","pass","pass"],"why":[["r1","第 1 轮：结果 pass（结果覆盖标准行）；回答 fail（回答里没有 ['7090569.24']）；第 2 轮：结果 fail（结果对不上标准行 [153.29657829181494]）；回答 fail（回答里没有 [153.29657829181494]）"]]},{"id":"H03","cat":"流量和漏斗","q":"2015 年 6 月首次访问的访客，次日留存率是多少？","s":["pass","pass","pass","pass","fail"],"why":[["r9","第 1 轮：结果 fail（没有查询结果）；回答 fail（回答里没有 [0.02851709120321937]）；期间 pending（没有这一轮的查询记录，期间核对不了）"]]},{"id":"H04","cat":"流量和漏斗","q":"行为日志里，哪一天的购买记录最多？","s":["pass","pass","pass","pass","pass"],"why":[]}]},"lineage":{"w":1114,"h":428,"nw":150,"nh":21,"cols":[{"name":"数据源","n":12,"x":2},{"name":"贴源 ODS","n":15,"x":162},{"name":"明细 DWD","n":7,"x":322},{"name":"维度 DIM","n":9,"x":482},{"name":"事实 FCT","n":4,"x":642},{"name":"汇总 DWS","n":4,"x":802},{"name":"应用 ADS","n":11,"x":962}],"nodes":[{"name":"ops.dagster_runs","l":"ops.dagster_runs","x":2,"y":69},{"name":"ods.events","l":"ods.events","x":2,"y":95},{"name":"ods.customers","l":"ods.customers","x":2,"y":121},{"name":"ops.dq_results","l":"ops.dq_results","x":2,"y":147},{"name":"ods.orders","l":"ods.orders","x":2,"y":173},{"name":"ods.order_items","l":"ods.order_items","x":2,"y":199},{"name":"ods.order_reviews","l":"ods.order_reviews","x":2,"y":225},{"name":"ops.late_data_checksum","l":"ops.late_data_checksum","x":2,"y":251},{"name":"ods.order_payments","l":"ods.order_payments","x":2,"y":277},{"name":"ops.pipeline_runs","l":"ops.pipeline_runs","x":2,"y":303},{"name":"ods.products","l":"ods.products","x":2,"y":329},{"name":"ods.sellers","l":"ods.sellers","x":2,"y":355},{"name":"ods_events","l":"events","x":162,"y":30},{"name":"ods_customers","l":"customers","x":162,"y":56},{"name":"ods_customers_changelog","l":"customers_changelog","x":162,"y":82},{"name":"ods_order_items","l":"order_items","x":162,"y":108},{"name":"ods_orders","l":"orders","x":162,"y":134},{"name":"ods_orders_changelog","l":"orders_changelog","x":162,"y":160},{"name":"ods_order_items_changelog","l":"order_items_changelog","x":162,"y":186},{"name":"ods_order_reviews","l":"order_reviews","x":162,"y":212},{"name":"ods_order_reviews_changelog","l":"order_reviews_changelog","x":162,"y":238},{"name":"ods_order_payments","l":"order_payments","x":162,"y":264},{"name":"ods_order_payments_changelog","l":"order_payments_changel…","x":162,"y":290},{"name":"ods_products","l":"products","x":162,"y":316},{"name":"ods_products_changelog","l":"products_changelog","x":162,"y":342},{"name":"ods_sellers","l":"sellers","x":162,"y":368},{"name":"ods_sellers_changelog","l":"sellers_changelog","x":162,"y":394},{"name":"dwd_traffic_event","l":"traffic_event","x":322,"y":134},{"name":"dwd_customer_address","l":"customer_address","x":322,"y":160},{"name":"dwd_order_status_change","l":"order_status_change","x":322,"y":186},{"name":"dwd_order_item","l":"order_item","x":322,"y":212},{"name":"dwd_order","l":"order","x":322,"y":238},{"name":"dwd_order_review","l":"order_review","x":322,"y":264},{"name":"dwd_order_payment","l":"order_payment","x":322,"y":290},{"name":"br_holidays","l":"br_holidays","x":482,"y":108},{"name":"dim_date","l":"date","x":482,"y":134},{"name":"dim_geo","l":"geo","x":482,"y":160},{"name":"snap_customer","l":"snap_customer","x":482,"y":186},{"name":"dim_customer","l":"customer","x":482,"y":212},{"name":"dim_product","l":"product","x":482,"y":238},{"name":"product_category_name_translation","l":"product_category_name_…","x":482,"y":264},{"name":"metricflow_time_spine","l":"metricflow_time_spine","x":482,"y":290},{"name":"dim_seller","l":"seller","x":482,"y":316},{"name":"fct_traffic_event","l":"traffic_event","x":642,"y":173},{"name":"fct_seller_daily_snapshot","l":"seller_daily_snapshot","x":642,"y":199},{"name":"fct_order_item","l":"order_item","x":642,"y":225},{"name":"fct_order_lifecycle","l":"order_lifecycle","x":642,"y":251},{"name":"dws_traffic_daily","l":"traffic_daily","x":802,"y":173},{"name":"dws_product_daily","l":"product_daily","x":802,"y":199},{"name":"dws_order_daily","l":"order_daily","x":802,"y":225},{"name":"dws_user_daily","l":"user_daily","x":802,"y":251},{"name":"ads_dagster_runs","l":"dagster_runs","x":962,"y":82},{"name":"ads_visitor_funnel_daily","l":"visitor_funnel_daily","x":962,"y":108},{"name":"ads_visitor_retention_cohort","l":"visitor_retention_coho…","x":962,"y":134},{"name":"ads_category_monthly","l":"category_monthly","x":962,"y":160},{"name":"ads_kpi_daily","l":"kpi_daily","x":962,"y":186},{"name":"ads_dq_results","l":"dq_results","x":962,"y":212},{"name":"ads_repurchase_cohort","l":"repurchase_cohort","x":962,"y":238},{"name":"ads_logistics_monthly","l":"logistics_monthly","x":962,"y":264},{"name":"ads_review_health_monthly","l":"review_health_monthly","x":962,"y":290},{"name":"ads_late_data","l":"late_data","x":962,"y":316},{"name":"ads_pipeline_runs","l":"pipeline_runs","x":962,"y":342}],"edges":[[47,52],[0,51],[43,53],[3,56],[7,60],[20,60],[31,60],[32,59],[9,61],[14,13],[26,25],[1,12],[24,23],[10,24],[5,18],[17,16],[18,15],[2,14],[11,26],[22,21],[20,19],[4,17],[8,22],[6,20],[43,47],[37,38],[34,35],[27,43],[17,29],[16,31],[13,31],[12,27],[13,28],[21,33],[31,33],[19,32],[31,32],[15,30],[31,30],[28,37],[50,55],[46,55],[35,55],[30,45],[32,45],[31,45],[38,45],[49,54],[45,49],[46,49],[38,49],[39,49],[23,39],[40,39],[45,44],[46,44],[25,42],[46,58],[38,58],[45,48],[46,48],[45,50],[33,50],[46,50],[17,46],[20,46],[29,46],[32,46],[31,46],[38,46],[50,57]]}}</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('d').textContent);
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmt(v) { if (typeof v !== 'number') return esc(v); if (Math.abs(v) < 10 && v % 1) return v.toFixed(6); return v.toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: v % 1 ? 2 : 0 }); }
+
+  /* 运行实例 */
+  var tabs = document.getElementById('runTabs'), panel = document.getElementById('runPanel');
+  function md(text, marks) {
+    var out = [], list = false;
+    text.split('\n').forEach(function (raw) {
+      var l = raw.trim();
+      if (!l) { if (list) { out.push('</ul>'); list = false; } return; }
+      var body = esc(l.replace(/^[-*]\s+/, '')).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>');
+      (marks || []).forEach(function (m) { body = body.replace(m[0], '<mark tabindex="0" data-r="' + m[1] + '">' + m[0] + '</mark>'); });
+      if (/^[-*]\s+/.test(l)) { if (!list) { out.push('<ul>'); list = true; } out.push('<li>' + body + '</li>'); }
+      else { if (list) { out.push('</ul>'); list = false; } out.push('<p>' + body + '</p>'); }
+    });
+    if (list) out.push('</ul>');
+    return out.join('');
+  }
+  function stepHtml(s, i, tables) {
+    var cls = s.rej ? ' rej' : '', h = '<li class="step' + cls + '"' + (s.rid ? ' data-rid="' + s.rid + '"' : '') + '><span class="i">' + i + '</span><span class="t">' + esc(s.tool) + '</span><span class="s">' + s.secs + ' 秒</span>';
+    if (s.desc) h += '<span class="d">' + esc(s.desc) + '</span>';
+    if (s.sql) h += '<pre>' + esc(s.sql) + '</pre>';
+    if (s.err) h += '<span class="msg fail">' + (s.rej ? '服务端拒绝：' : '报错：') + esc(s.err) + '</span>';
+    (s.guards || []).forEach(function (g) { h += '<span class="msg hold">服务端提示：' + esc(g.replace(/^注意：/, '')) + '</span>'; });
+    if (s.rid) {
+      h += '<span class="d">结果登记为 <span class="rid">' + s.rid + '</span>' + (s.inputs ? '，由 ' + s.inputs.join('、') + ' 算出' : '') + '，' + s.rows + ' 行</span>';
+      var t = tables[s.rid];
+      if (t) h += '<table class="rt"><tr>' + t.cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr>' + t.rows.map(function (r) { return '<tr>' + r.map(function (v) { return '<td>' + fmt(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+    }
+    return h + '</li>';
+  }
+  function showRun(k) {
+    var t = D.traces[k];
+    Array.prototype.forEach.call(tabs.children, function (b, j) { b.setAttribute('aria-selected', j === k ? 'true' : 'false'); });
+    var left = '<div class="lab">用户提问</div>' + t.q.map(function (q) { return '<p class="ask">' + esc(q) + '</p>'; }).join('');
+    left += '<div class="ans">' + t.a.map(function (a, i) { return (t.a.length > 1 ? '<div class="turn">第 ' + (i + 1) + ' 轮回答 · ' + a.secs + ' 秒</div>' : '') + md(a.text, t.marks); }).join('') + '</div>';
+    left += '<p class="verdict">' + (t.a.length === 1 ? '用时 ' + t.a[0].secs + ' 秒 · ' : '') + esc(t.verdict) + '</p>';
+    var right = '<div class="lab">运行记录 ' + esc(t.ref) + '</div><ol class="steps">';
+    if (!t.steps.length) right += '<li class="noop">' + esc(t.empty) + '</li>';
+    t.steps.forEach(function (s, i) { right += stepHtml(s, i + 1, t.tables); });
+    right += '</ol>';
+    panel.innerHTML = '<div class="run"><div>' + left + '</div><div>' + right + '</div></div>';
+    panel.querySelectorAll('mark').forEach(function (m) {
+      var on = function (v) { var st = panel.querySelector('.step[data-rid="' + m.dataset.r + '"]'); if (st) st.classList.toggle('src', v); m.classList.toggle('on', v); };
+      m.addEventListener('mouseenter', function () { on(true); }); m.addEventListener('mouseleave', function () { on(false); });
+      m.addEventListener('focus', function () { on(true); }); m.addEventListener('blur', function () { on(false); });
+    });
+  }
+  D.traces.forEach(function (t, i) {
+    var b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab'); b.textContent = t.label;
+    b.addEventListener('click', function () { showRun(i); }); tabs.appendChild(b);
+  });
+  showRun(0);
+
+  /* 评测矩阵 */
+  var mx = document.getElementById('mx'), only = document.getElementById('mxOnly'), open = null;
+  function drawMx() {
+    var h = '<div class="hd"><span></span><span></span>' + D.matrix.cols.map(function (c, i) { return '<span class="k"><b>' + D.matrix.totals[i] + '</b>' + c + '</span>'; }).join('') + '</div>', cat = '';
+    D.matrix.rows.forEach(function (r) {
+      var changed = r.s.indexOf('fail') >= 0 && r.s.indexOf('pass') >= 0;
+      if (only.checked && !changed && r.s.indexOf('fail') < 0) return;
+      if (r.cat !== cat) { cat = r.cat; h += '<div class="ct">' + esc(cat) + '</div>'; }
+      h += '<button type="button" class="r" data-id="' + r.id + '" aria-expanded="' + (open === r.id) + '"><span class="id">' + r.id + '</span><span class="q">' + esc(r.q) + '</span>' + r.s.map(function (v, i) { return '<span class="c ' + v + '" title="' + D.matrix.cols[i] + (v === 'pass' ? ' 通过' : ' 未通过') + '">' + (v === 'pass' ? '' : '×') + '</span>'; }).join('') + '</button>';
+      if (open === r.id) h += '<div class="why"><div>' + esc(r.q) + '</div>' + (r.why.length ? r.why.map(function (w) { return '<div>' + w[0] + '：' + esc(w[1]) + '</div>'; }).join('') : '<div>五次运行全部通过。</div>') + '</div>';
+    });
+    mx.innerHTML = h;
+  }
+  mx.addEventListener('click', function (e) { var b = e.target.closest('.r'); if (!b) return; open = open === b.dataset.id ? null : b.dataset.id; drawMx(); });
+  only.addEventListener('change', drawMx); drawMx();
+
+  /* 血缘 */
+  var L = D.lineage, box = document.getElementById('lin'), NS = 'http://www.w3.org/2000/svg';
+  function el(n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; }
+  var svg = el('svg', { width: L.w, height: L.h, viewBox: '0 0 ' + L.w + ' ' + L.h, role: 'img', 'aria-label': 'dbt 血缘图，从数据源到应用层共 62 个节点、71 条依赖' });
+  L.cols.forEach(function (c) { var t = el('text', { x: c.x, y: 18, 'class': 'col' }); t.textContent = c.name + ' ' + c.n; svg.appendChild(t); });
+  var paths = L.edges.map(function (e) {
+    var a = L.nodes[e[0]], b = L.nodes[e[1]], x1 = a.x + L.nw, y1 = a.y + L.nh / 2, x2 = b.x, y2 = b.y + L.nh / 2, m = (x1 + x2) / 2;
+    var p = el('path', { d: 'M' + x1 + ' ' + y1 + ' C' + m + ' ' + y1 + ' ' + m + ' ' + y2 + ' ' + x2 + ' ' + y2 }); svg.appendChild(p); return p;
+  });
+  var gs = L.nodes.map(function (n, i) {
+    var g = el('g', { 'data-i': i, tabindex: 0 }); var r = el('rect', { x: n.x, y: n.y, width: L.nw, height: L.nh }); var t = el('text', { x: n.x + 6, y: n.y + 14 }); t.textContent = n.l;
+    var title = el('title', {}); title.textContent = n.name; g.appendChild(title); g.appendChild(r); g.appendChild(t); svg.appendChild(g); return g;
+  });
+  box.appendChild(svg);
+  var up = {}, down = {}; L.edges.forEach(function (e) { (down[e[0]] = down[e[0]] || []).push(e[1]); (up[e[1]] = up[e[1]] || []).push(e[0]); });
+  function walk(m, s) { var seen = {}, q = [s]; while (q.length) { (m[q.pop()] || []).forEach(function (x) { if (!seen[x]) { seen[x] = 1; q.push(x); } }); } return seen; }
+  function clear() { box.classList.remove('act'); gs.forEach(function (g) { g.removeAttribute('class'); }); paths.forEach(function (p) { p.removeAttribute('class'); }); }
+  function pick(i) {
+    clear(); box.classList.add('act'); var a = walk(up, i), b = walk(down, i);
+    gs.forEach(function (g, j) { g.setAttribute('class', j === i ? 'me' : a[j] ? 'up' : b[j] ? 'down' : ''); });
+    L.edges.forEach(function (e, j) { if ((a[e[0]] && (a[e[1]] || e[1] === i))) paths[j].setAttribute('class', 'up'); else if ((b[e[1]] && (b[e[0]] || e[0] === i))) paths[j].setAttribute('class', 'down'); });
+  }
+  svg.addEventListener('click', function (e) { var g = e.target.closest('g'); if (g) pick(+g.dataset.i); });
+  svg.addEventListener('keydown', function (e) { if (e.key === 'Enter') { var g = e.target.closest('g'); if (g) pick(+g.dataset.i); } });
+  document.getElementById('linReset').addEventListener('click', clear);
+  var dft = L.nodes.findIndex(function (n) { return n.name === 'fct_order_item'; }); if (dft >= 0) pick(dft);
+})();
+</script>
+</body>
+</html>
